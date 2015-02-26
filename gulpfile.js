@@ -9,20 +9,20 @@ var buffer = require('vinyl-buffer');
 var source = require('vinyl-source-stream');
 
 gulp.task('lint', function () {
-  return gulp.src('src/*.js')
+  return gulp.src('./recon.js')
     .pipe(jshint())
     .pipe(jshint.reporter('jshint-stylish'))
 });
 
 gulp.task('javascript', function() {
-  return browserify('./src/recon.js')
+  return browserify({entries: ['./recon.js'], standalone: 'recon'})
     .bundle()
     .pipe(source('recon.min.js'))
     .pipe(buffer())
     .pipe(sourcemaps.init())
       .pipe(uglify())
-    .pipe(sourcemaps.write('.'))
-    .pipe(gulp.dest('dist'));
+    .pipe(sourcemaps.write('./'))
+    .pipe(gulp.dest('./'));
 });
 
 gulp.task('default', ['lint', 'javascript']);
