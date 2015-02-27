@@ -1,6 +1,169 @@
 'use strict';
 
 
+function coerce(value) {
+  if (value === null) return Extant;
+  else if (value instanceof Record ||
+           typeof value === 'string' ||
+           typeof value === 'number' ||
+           value instanceof Uint8Array) return value;
+  else if (typeof value === 'boolean') return value.toString();
+  else if (Array.isArray(value)) return coerceArray(value);
+  else if (typeof value === 'object') {
+    if (value.toRecon && typeof value.toRecon === 'function') return value.toRecon();
+    else return coerceObject(value);
+  }
+  else return Absent;
+}
+function coerceArray(array) {
+  var builder = new RecordBuilder();
+  var n = array.length;
+  var i = 0;
+  while (i < n) {
+    var value = coerce(array[i]);
+    builder.appendValue(value);
+    i += 1;
+  }
+  return builder.state();
+}
+function coerceObject(object) {
+  var builder = new RecordBuilder();
+  var prop, key, value;
+  var attrs = object['@'];
+  for (prop in attrs) {
+    key = coerce(prop);
+    if (typeof key === 'string') {
+      value = coerce(attrs[prop]);
+      if (!value.isAbsent) builder.appendField(new Attr(key, value));
+    }
+  }
+  for (prop in object) {
+    if (prop !== '@') {
+      key = coerce(prop);
+      if (!key.isAbsent) {
+        value = coerce(object[prop]);
+        if (!value.isAbsent) builder.appendField(new Slot(key, value));
+      }
+    }
+  }
+  return builder.state();
+}
+
+function parse(string) {
+  var input = new StringIterator(string);
+  var result = new DocumentParser().run(input);
+  return result.state();
+}
+
+function stringify(value) {
+  var writer = new ReconWriter();
+  writer.writeBlock(value);
+  return writer.state();
+}
+
+function objectify(value) {
+  if (value === null || value.isExtant) return null;
+  else if (value.isAbsent) return undefined;
+  else if (value instanceof Record) {
+    if (value.isArray()) return objectifyArray(value);
+    else return objectifyObject(value);
+  }
+  else return value;
+}
+function objectifyArray(record) {
+  var array = [];
+  var items = record.iterator();
+  while (!items.isEmpty()) {
+    var value = objectify(items.head());
+    array.push(value);
+    items.step();
+  }
+  return array;
+}
+function objectifyObject(record) {
+  var items = record.iterator();
+  var key, value;
+  var attrs = {};
+  var object = {'@': attrs};
+  var hasAttrs = false;
+  var i = 0;
+  while (!items.isEmpty()) {
+    var item = items.head();
+    if (item.isField) {
+      key = objectify(item.key);
+      value = objectify(item.value);
+      if (item.isAttr) {
+        attrs[key] = value;
+        hasAttrs = true;
+      }
+      else object[key] = value;
+    }
+    else {
+      value = objectify(item.value);
+      object[i] = value;
+    }
+    items.step();
+    i += 1;
+  }
+  if (!hasAttrs) delete object['@'];
+  return object;
+}
+
+
+function Record(items, index) {
+  var record = function(key) {
+    var value = index[key];
+    if (typeof value === 'undefined' && typeof key === 'number') value = items[key];
+    return value;
+  };
+  record.__proto__ = Record.prototype;
+  record.size = items.length;
+  record.isArray = function () {
+    return items.length >= 0 && Object.getOwnPropertyNames(index).length === 0;
+  };
+  record.iterator = function () {
+    return new RecordIterator(items);
+  };
+  return record;
+}
+Record.prototype = Object.create(Function.prototype);
+Record.prototype.constructor = Record;
+Record.prototype.isEmpty = function () {
+  return this.size === 0;
+};
+Record.prototype.isMarkup = function () {
+  function isBlank(string) {
+    var cs = new StringIterator(string);
+    while (!cs.isEmpty() && isSpace(cs.head())) cs.step();
+    return cs.isEmpty();
+  }
+  var items = this.iterator();
+  var afterNonText = false;
+  var hasNonText = false;
+  var sections = 0;
+  while (!items.isEmpty()) {
+    var item = items.head();
+    if (typeof item !== 'string') {
+      if (afterNonText) return false;
+      afterNonText = true;
+      hasNonText = true;
+    }
+    else if (afterNonText && !isBlank(item)) {
+      afterNonText = false;
+      sections += 1;
+    }
+    else if (sections === 0) sections = 1;
+    items.step();
+  }
+  return hasNonText && sections >= 2;
+};
+Record.prototype.toString = function () {
+  var writer = new ReconWriter();
+  writer.writeRecord(this);
+  return writer.state();
+};
+
+
 function Field() {}
 Field.prototype.isField = true;
 Field.prototype.isAttr = false;
@@ -25,30 +188,29 @@ Slot.prototype.constructor = Slot;
 Slot.prototype.isSlot = true;
 
 
-function Record(items, index) {
-  var record = function(key) {
-    var value = index[key];
-    if (typeof value === 'undefined' && typeof key === 'number') value = items[key];
-    return value;
-  };
-  record.__proto__ = Record.prototype;
-  record.size = items.length;
-  return record;
-}
-Record.prototype = Object.create(Function.prototype);
-Record.prototype.constructor = Record;
-Record.prototype.isEmpty = function () {
-  return this.size === 0;
-};
-
-
 var Extant = {
   isExtant: true
 };
 
-
 var Absent = {
   isAbsent: true
+};
+
+
+function RecordIterator(items, index) {
+  this.items = items;
+  this.index = index || 0;
+}
+RecordIterator.prototype.isEmpty = function () {
+  return this.index >= this.items.length;
+};
+RecordIterator.prototype.head = function () {
+  if (this.index >= this.items.length) throw 'head of empty iterator';
+  return this.items[this.index];
+};
+RecordIterator.prototype.step = function () {
+  if (this.index >= this.items.length) throw 'empty iterator step';
+  this.index += 1;
 };
 
 
@@ -66,6 +228,7 @@ RecordBuilder.prototype.appendValue = function (value) {
 RecordBuilder.prototype.state = function () {
   return new Record(this.items, this.index);
 };
+
 
 function ValueBuilder() {
   this.items = null;
@@ -230,6 +393,13 @@ StringBuilder.prototype.append = function (c) {
     this.string += String.fromCharCode(0xFFFD);
   }
 };
+StringBuilder.prototype.appendString = function (s) {
+  var cs = new StringIterator(s);
+  while (!cs.isEmpty()) {
+    this.append(cs.head());
+    cs.step();
+  }
+};
 StringBuilder.prototype.state = function () {
   return this.string;
 };
@@ -244,14 +414,14 @@ function DataBuilder() {
   this.r = 0;
   this.s = 0;
 }
-DataBuilder.expand = function (base, size) {
-  var n = Math.max(base, size) - 1;
-  n |= n >> 1; n |= n >> 2; n |= n >> 4; n |= n >> 8;
-  return n + 1;
-};
 DataBuilder.prototype.prepare = function (size) {
+  function expand(base, size) {
+    var n = Math.max(base, size) - 1;
+    n |= n >> 1; n |= n >> 2; n |= n >> 4; n |= n >> 8;
+    return n + 1;
+  }
   if (this.aliased || size > this.buffer.length) {
-    var array = new Uint8Array(DataBuilder.expand(256, size));
+    var array = new Uint8Array(expand(256, size));
     if (this.buffer) array.set(this.buffer);
     this.buffer = array;
     this.aliased = false;
@@ -313,13 +483,6 @@ DataBuilder.prototype.state = function (value) {
   this.aliased = true;
   return this.buffer;
 };
-
-
-function parse(s) {
-  var input = new StringIterator(s);
-  var result = new DocumentParser().run(input);
-  return result.state();
-}
 
 
 function isSpace(c) {
@@ -687,7 +850,7 @@ InlineValueParser.prototype.feed = function (input) {
           }
         }
         else if (!builder) return new StringIteratee.Done(Absent);
-        else return new StringIteratee.done(builder.state());
+        else return new StringIteratee.Done(builder.state());
       }
       else if (input.isDone()) {
         if (!builder) return new StringIteratee.Done(Absent);
@@ -1011,7 +1174,7 @@ StringParser.prototype.feed = function (input) {
       if (!input.isEmpty()) {
         if (c === 34/*'"'*/) {
           input.step();
-          return new StringIteratee.done(text.state());
+          return new StringIteratee.Done(text.state());
         }
         else if (c === 92/*'\\'*/) {
           input.step();
@@ -1079,7 +1242,7 @@ DataParser.prototype.constructor = DataParser;
 DataParser.prototype.feed = function (input) {
   var c = 0;
   var s = this.s;
-  var data = this.data || new DataBuilder()();
+  var data = this.data || new DataBuilder();
   if (s === 1) {
     if (!input.isEmpty() && (c = input.head(), c === 37/*'%'*/)) {
       input.step();
@@ -1298,8 +1461,254 @@ IdentParser.prototype.feed = function (input) {
 };
 
 
-module.exports = function () {};
+function ReconWriter(builder) {
+  this.builder = builder || new StringBuilder();
+}
+ReconWriter.prototype.writeValue = function (value, inMarkup) {
+  if (value instanceof Record) this.writeRecord(value, inMarkup);
+  else if (typeof value === 'string') this.writeText(value, inMarkup);
+  else if (typeof value === 'number') this.writeNumber(value);
+  else if (value instanceof Uint8Array) this.writeData(value);
+};
+ReconWriter.prototype.writeAttr = function(attr) {
+  this.builder.append(64/*'@'*/);
+  this.writeIdent(attr.key);
+  if (!attr.value.isExtant) {
+    this.builder.append(40/*'('*/);
+    this.writeBlock(attr.value);
+    this.builder.append(41/*')'*/);
+  }
+};
+ReconWriter.prototype.writeItem = function(item) {
+  if (item.isField) {
+    this.writeValue(item.key);
+    this.builder.append(58/*':'*/);
+    if (!item.value.isExtant) this.writeValue(item.value);
+  }
+  else this.writeValue(item);
+};
+ReconWriter.prototype.writeBlock = function (value) {
+  if (!(value instanceof Record)) this.writeValue(value);
+  else if (value.isMarkup()) this.writeMarkup(value);
+  else {
+    var items = value.iterator();
+    var item;
+    var hasAttrs = false;
+    while (!items.isEmpty() && (item = items.head(), item.isAttr)) {
+      this.writeAttr(item);
+      items.step();
+      hasAttrs = true;
+    }
+    if (!items.isEmpty()) {
+      if (hasAttrs) this.builder.append(123/*'{'*/);
+      this.writeItem(items.head());
+      items.step();
+      while (!items.isEmpty()) {
+        this.builder.append(44/*','*/);
+        this.writeItem(items.head());
+        items.step();
+      }
+      if (hasAttrs) this.builder.append(125/*'}'*/);
+    }
+    else if (!hasAttrs) {
+      this.builder.append(123/*'{'*/);
+      this.builder.append(125/*'}'*/);
+    }
+  }
+};
+ReconWriter.prototype.writeRecord = function (record, inMarkup) {
+  if (record.isMarkup()) this.writeMarkup(record);
+  else {
+    var items = record.iterator();
+    var item;
+    var hasAttrs = false;
+    while (!items.isEmpty() && (item = items.head(), item.isAttr)) {
+      this.writeAttr(item);
+      items.step();
+      hasAttrs = true;
+    }
+    if (!items.isEmpty()) {
+      items.step();
+      if (hasAttrs && items.isEmpty()) {
+        if (inMarkup) {
+          if (item instanceof Record || typeof item === 'string') this.writeValue(item, inMarkup);
+          else {
+            this.builder.append(123/*'{'*/);
+            this.writeValue(item);
+            this.builder.append(125/*'}'*/);
+          }
+        }
+        else if (item.isSlot) {
+          this.builder.append(123/*'{'*/);
+          this.writeValue(item);
+          this.builder.append(125/*'}'*/);
+        }
+        else if (typeof item === 'string') this.writeString(item);
+        else this.writeValue(item);
+      }
+      else {
+        this.builder.append(123/*'{'*/);
+        this.writeItem(item);
+        while (!items.isEmpty()) {
+          item = items.head();
+          this.builder.append(44/*','*/);
+          this.writeItem(item);
+          items.step();
+        }
+        this.builder.append(125/*'}'*/);
+      }
+    }
+    else if (!hasAttrs) {
+      this.builder.append(123/*'{'*/);
+      this.builder.append(125/*'}'*/);
+    }
+  }
+};
+ReconWriter.prototype.writeMarkup = function (record) {
+  var items = record.iterator();
+  var item;
+  var hasAttrs = false;
+  while (!items.isEmpty() && (item = items.head(), item.isAttr)) {
+    this.writeAttr(item);
+    items.step();
+    hasAttrs = true;
+  }
+  this.builder.append(91/*'['*/);
+  while (!items.isEmpty()) {
+    item = items.head();
+    if (typeof item === 'string') {
+      var cs = new StringIterator(item);
+      while (!cs.isEmpty()) {
+        var c = cs.head();
+        switch (c) {
+          case 64/*'@'*/:
+          case 91/*'['*/:
+          case 92/*'\\'*/:
+          case 93/*']'*/:
+          case 123/*'{'*/:
+          case 125/*'}'*/: this.builder.append(92/*'\\'*/); this.builder.append(c); break;
+          default: this.builder.append(c);
+        }
+        cs.step();
+      }
+    }
+    else if (item instanceof Record) this.writeRecord(item, true);
+    else {
+      this.builder.append(123/*'{'*/);
+      this.writeItem(item);
+      this.builder.append(125/*'}'*/);
+    }
+    items.step();
+  }
+  this.builder.append(93/*']'*/);
+};
+ReconWriter.prototype.writeText = function (text, inMarkup) {
+  function isIdent() {
+    var cs = new StringIterator(text);
+    if (cs.isEmpty() || !isNameStartChar(cs.head())) return false;
+    cs.step();
+    while (!cs.isEmpty() && isNameChar(cs.head())) cs.step();
+    return cs.isEmpty();
+  }
+  if (inMarkup) this.writeTextMarkup(text);
+  else if (isIdent()) this.writeIdent(text);
+  else this.writeString(text);
+};
+ReconWriter.prototype.writeString = function (string) {
+  var cs = new StringIterator(string);
+  this.builder.append(34/*'"'*/);
+  while (!cs.isEmpty()) {
+    var c = cs.head();
+    switch (c) {
+      case 34/*'"'*/:
+      case 92/*'\\'*/: this.builder.append(92/*'\\'*/); this.builder.append(c); break;
+      case 8/*'\b'*/: this.builder.append(92/*'\\'*/); this.builder.append(98/*'b'*/); break;
+      case 12/*'\f'*/: this.builder.append(92/*'\\'*/); this.builder.append(102/*'f'*/); break;
+      case 10/*'\n'*/: this.builder.append(92/*'\\'*/); this.builder.append(110/*'n'*/); break;
+      case 13/*'\r'*/: this.builder.append(92/*'\\'*/); this.builder.append(114/*'r'*/); break;
+      case 9/*'\t'*/: this.builder.append(92/*'\\'*/); this.builder.append(116/*'t'*/); break;
+      default: this.builder.append(c);
+    }
+    cs.step();
+  }
+  this.builder.append(34/*'"'*/);
+};
+ReconWriter.prototype.writeIdent = function (ident) {
+  this.builder.appendString(ident);
+};
+ReconWriter.prototype.writeTextMarkup = function (text) {
+  var cs = new StringIterator(text);
+  this.builder.append(91/*'['*/);
+  while (!cs.isEmpty()) {
+    var c = cs.head();
+    switch (c) {
+      case 64/*'@'*/:
+      case 91/*'['*/:
+      case 92/*'\\'*/:
+      case 93/*']'*/:
+      case 123/*'{'*/:
+      case 125/*'}'*/: this.builder.append(92/*'\\'*/); this.builder.append(c); break;
+      default: this.builder.append(c);
+    }
+    cs.step();
+  }
+  this.builder.append(93/*']'*/);
+};
+ReconWriter.prototype.writeNumber = function (number) {
+  this.builder.appendString(number.toString());
+};
+ReconWriter.prototype.writeData = function (data) {
+  function encodeBase64Digit(x) {
+    if      (x >=  0 && x < 26) return x + 65/*'A'*/;
+    else if (x >= 26 && x < 52) return x + 71/*('a' - 26)*/;
+    else if (x >= 52 && x < 62) return x - 4/*-('0' - 52)*/;
+    else if (x === 62) return 43/*'+'*/;
+    else if (x === 63) return 47/*'/'*/;
+  }
+  this.builder.append(37/*'%'*/);
+  var i = 0;
+  var n = data.length;
+  var x, y, z;
+  while (i + 2 < n) {
+    x = data[i];
+    y = data[i + 1];
+    z = data[i + 2];
+    this.builder.append(encodeBase64Digit(x >>> 2));
+    this.builder.append(encodeBase64Digit(((x << 4) | (y >>> 4)) & 0x3F));
+    this.builder.append(encodeBase64Digit(((y << 2) | (z >>> 6)) & 0x3F));
+    this.builder.append(encodeBase64Digit(z & 0x3F));
+    i += 3;
+  }
+  if (i + 1 < n) {
+    x = data[i];
+    y = data[i + 1];
+    this.builder.append(encodeBase64Digit(x >>> 2));
+    this.builder.append(encodeBase64Digit(((x << 4) | (y >>> 4)) & 0x3F));
+    this.builder.append(encodeBase64Digit((y << 2) & 0x3F));
+    this.builder.append(61/*'='*/);
+    i += 2;
+  }
+  else if (i < n) {
+    x = data[i];
+    this.builder.append(encodeBase64Digit(x >>> 2));
+    this.builder.append(encodeBase64Digit((x << 4) & 0x3F));
+    this.builder.append(61/*'='*/);
+    this.builder.append(61/*'='*/);
+    i += 1;
+  }
+};
+ReconWriter.prototype.state = function () {
+  return this.builder.state();
+};
+
+
+module.exports = function (value) {
+  return coerce(value);
+};
 exports = module.exports;
+exports.parse = parse;
+exports.stringify = stringify;
+exports.objectify = objectify;
 exports.Field = Field;
 exports.Attr = Attr;
 exports.Slot = Slot;
@@ -1308,4 +1717,3 @@ exports.Extant = Extant;
 exports.Absent = Absent;
 exports.RecordBuilder = RecordBuilder;
 exports.ValueBuilder = ValueBuilder;
-exports.parse = parse;
