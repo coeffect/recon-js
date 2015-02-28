@@ -2,16 +2,18 @@
   "name": "recon",
   "version": "0.0.0",
   "description": "Record Notation (RECON) JavaScript Implementation",
+  "homepage": "https://github.com/coeffect/recon-js",
+  "author": "Chris Sachs <chris@coeffect.net>",
   "license": "Apache-2.0",
-  "author": {
-    "name": "Chris Sachs",
-    "email": "chris@coeffect.net"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/coeffect/recon-js.git"
-  },
-  "main": "recon.js",
+  "keywords": [
+    "attributes",
+    "data",
+    "language",
+    "markup",
+    "parser",
+    "serialization",
+    "structure"
+  ],
   "devDependencies": {
     "browserify": "^9.0.3",
     "gulp": "^3.8.11",
@@ -21,7 +23,22 @@
     "gulp-sourcemaps": "^1.4.0",
     "gulp-uglify": "^1.1.0",
     "jshint-stylish": "^1.0.1",
+    "run-sequence": "^1.0.2",
     "vinyl-buffer": "^1.0.0",
     "vinyl-source-stream": "^1.0.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/coeffect/recon-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/coeffect/recon-js/issues"
+  },
+  "engines": {
+    "node": ">=0.10.0"
+  },
+  "scripts": {
+    "test": "gulp"
+  },
+  "main": "recon.js"
 }

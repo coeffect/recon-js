@@ -7,6 +7,7 @@ var jshint = require('gulp-jshint');
 var mocha = require('gulp-mocha');
 var sourcemaps = require('gulp-sourcemaps');
 var uglify = require('gulp-uglify');
+var runSequence = require('run-sequence');
 var buffer = require('vinyl-buffer');
 var source = require('vinyl-source-stream');
 
@@ -16,8 +17,12 @@ gulp.task('lint', function () {
     .pipe(jshint.reporter('jshint-stylish'))
 });
 
-gulp.task('javascript', function() {
-  return browserify({entries: ['./recon.js'], standalone: 'recon'})
+gulp.task('build', function() {
+  return browserify({
+      entries: ['./recon.js'],
+      noParse: ['./recon.js'],
+      standalone: 'recon'
+    })
     .bundle()
     .pipe(source('recon.min.js'))
     .pipe(buffer())
@@ -41,4 +46,6 @@ gulp.task('coverage', function () {
     .pipe(gulp.dest('./'));
 });
 
-gulp.task('default', ['lint', 'javascript']);
+gulp.task('default', function (callback) {
+  runSequence('lint', 'build', 'test', callback);
+});

@@ -1,18 +1,33 @@
 'use strict';
 
-function coerce(value) {
-  if (value === null) return Extant;
-  else if (value instanceof Record ||
-           typeof value === 'string' ||
-           typeof value === 'number' ||
-           typeof value === 'boolean' ||
-           value instanceof Uint8Array ||
-           value.isExtant ||
-           value.isAbsent) return value;
-  else if (Array.isArray(value)) return coerceArray(value);
-  else if (typeof value === 'object') {
-    if (value.toRecon && typeof value.toRecon === 'function') return value.toRecon();
-    else return coerceObject(value);
+function coerce() {
+  if (arguments.length === 1) {
+    var item = arguments[0];
+    if (item instanceof Attr || item instanceof Slot) {
+      var builder = new RecordBuilder();
+      builder.appendField(item);
+      return builder.state();
+    }
+    else return coerceItem(item);
+  }
+  else if (arguments.length > 1) return coerceArray(arguments);
+  else return Absent;
+}
+function coerceItem(item) {
+  if (item === null) return Extant;
+  else if (item instanceof Record ||
+           item instanceof Attr ||
+           item instanceof Slot ||
+           typeof item === 'string' ||
+           typeof item === 'number' ||
+           typeof item === 'boolean' ||
+           item instanceof Uint8Array ||
+           item === Extant ||
+           item === Absent) return item;
+  else if (Array.isArray(item)) return coerceArray(item);
+  else if (typeof item === 'object') {
+    if (item.toRecon && typeof item.toRecon === 'function') return item.toRecon();
+    else return coerceObject(item);
   }
   else return Absent;
 }
@@ -21,8 +36,9 @@ function coerceArray(array) {
   var n = array.length;
   var i = 0;
   while (i < n) {
-    var value = coerce(array[i]);
-    builder.appendValue(value);
+    var value = coerceItem(array[i]);
+    if (value.isField) builder.appendField(value);
+    else builder.appendValue(value);
     i += 1;
   }
   return builder.state();
@@ -110,6 +126,35 @@ function objectifyObject(record) {
   return object;
 }
 
+function base64(string) {
+  if (typeof string === 'undefined') return new Uint8Array(0);
+  var data = new DataBuilder();
+  var cs = new StringIterator(string);
+  while (!cs.isEmpty()) {
+    data.appendBase64Char(cs.head());
+    cs.step();
+  }
+  return data.state();
+}
+
+function attr(key, value) {
+  if (typeof value === 'undefined') value = Extant;
+  return new Attr(coerce(key), coerce(value));
+}
+
+function slot(key, value) {
+  if (typeof value === 'undefined') value = Extant;
+  return new Slot(coerce(key), coerce(value));
+}
+
+function empty() {
+  return new Record([], {});
+}
+
+function builder() {
+  return new RecordBuilder();
+}
+
 function compare(x, y) {
   if (x === y) return true;
   if (x instanceof Record && y instanceof Record) return x.equals(y);
@@ -121,10 +166,6 @@ function compare(x, y) {
     if (i === n) return true;
   }
   return false;
-}
-
-function builder() {
-  return new RecordBuilder();
 }
 
 
@@ -199,9 +240,6 @@ Record.prototype.toString = function () {
   writer.writeRecord(this);
   return writer.state();
 };
-Record.empty = function () {
-  return new Record([], {});
-};
 
 
 function Field() {}
@@ -221,6 +259,11 @@ Object.defineProperty(Attr.prototype, 'isAttr', {enumerable: true, value: true})
 Attr.prototype.equals = function (that) {
   return that.isAttr && compare(this.key, that.key) && compare(this.value, that.value);
 };
+Attr.prototype.toString = function () {
+  var writer = new ReconWriter();
+  writer.writeAttr(this);
+  return writer.state();
+};
 
 function Slot(key, value) {
   Field.call(this);
@@ -234,20 +277,10 @@ Object.defineProperty(Slot.prototype, 'isSlot', {enumerable: true, value: true})
 Slot.prototype.equals = function (that) {
   return that.isSlot && compare(this.key, that.key) && compare(this.value, that.value);
 };
-
-
-var Data = {};
-Data.fromBase64 = function (string) {
-  var data = new DataBuilder();
-  var cs = new StringIterator(string);
-  while (!cs.isEmpty()) {
-    data.appendBase64Char(cs.head());
-    cs.step();
-  }
-  return data.state();
-};
-Data.empty = function () {
-  return new Uint8Array(0);
+Slot.prototype.toString = function () {
+  var writer = new ReconWriter();
+  writer.writeItem(this);
+  return writer.state();
 };
 
 
@@ -293,17 +326,15 @@ RecordBuilder.prototype.appendValue = function (value) {
   this.items.push(value);
 };
 RecordBuilder.prototype.attr = function (key, value) {
-  if (typeof value === 'undefined') value = Extant;
-  this.appendField(new Attr(coerce(key), coerce(value)));
+  this.appendField(attr(key, value));
   return this;
 };
 RecordBuilder.prototype.slot = function (key, value) {
-  if (typeof value === 'undefined') value = Extant;
-  this.appendField(new Slot(coerce(key), coerce(value)));
+  this.appendField(slot(key, value));
   return this;
 };
 RecordBuilder.prototype.item = function (value) {
-  this.appendValue(coerce(value));
+  this.appendValue(coerceItem(value));
   return this;
 };
 RecordBuilder.prototype.state = function () {
@@ -1793,19 +1824,18 @@ ReconWriter.prototype.state = function () {
 };
 
 
-module.exports = function (value) {
-  return coerce(value);
+module.exports = function () {
+  return coerce.apply(this, arguments);
 };
 exports = module.exports;
 exports.parse = parse;
 exports.stringify = stringify;
 exports.objectify = objectify;
-exports.compare = compare;
+exports.base64 = base64;
+exports.attr = attr;
+exports.slot = slot;
+exports.extant = Extant;
+exports.absent = Absent;
+exports.empty = empty;
 exports.builder = builder;
-exports.Field = Field;
-exports.Attr = Attr;
-exports.Slot = Slot;
-exports.Record = Record;
-exports.Data = Data;
-exports.Extant = Extant;
-exports.Absent = Absent;
+exports.compare = compare;
