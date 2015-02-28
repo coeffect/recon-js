@@ -1,13 +1,14 @@
 'use strict';
 
-
 function coerce(value) {
   if (value === null) return Extant;
   else if (value instanceof Record ||
            typeof value === 'string' ||
            typeof value === 'number' ||
-           value instanceof Uint8Array) return value;
-  else if (typeof value === 'boolean') return value.toString();
+           typeof value === 'boolean' ||
+           value instanceof Uint8Array ||
+           value.isExtant ||
+           value.isAbsent) return value;
   else if (Array.isArray(value)) return coerceArray(value);
   else if (typeof value === 'object') {
     if (value.toRecon && typeof value.toRecon === 'function') return value.toRecon();
@@ -109,27 +110,48 @@ function objectifyObject(record) {
   return object;
 }
 
+function compare(x, y) {
+  if (x === y) return true;
+  if (x instanceof Record && y instanceof Record) return x.equals(y);
+  if (x.isField && y.isField) return x.equals(y);
+  if (x instanceof Uint8Array && y instanceof Uint8Array && x.length === y.length) {
+    var i = 0;
+    var n = x.length;
+    while (i < n && x[i] === y[i]) i += 1;
+    if (i === n) return true;
+  }
+  return false;
+}
+
+function builder() {
+  return new RecordBuilder();
+}
+
 
 function Record(items, index) {
   var record = function(key) {
-    var value = index[key];
-    if (typeof value === 'undefined' && typeof key === 'number') value = items[key];
+    var value = this.index[key];
+    if (typeof value === 'undefined' && typeof key === 'number') value = this.items[key];
     return value;
   };
   record.__proto__ = Record.prototype;
-  record.size = items.length;
-  record.isArray = function () {
-    return items.length >= 0 && Object.getOwnPropertyNames(index).length === 0;
-  };
-  record.iterator = function () {
-    return new RecordIterator(items);
-  };
+  Object.defineProperty(record, 'items', {value: items});
+  Object.defineProperty(record, 'index', {value: index});
   return record;
 }
 Record.prototype = Object.create(Function.prototype);
 Record.prototype.constructor = Record;
+Object.defineProperty(Record.prototype, 'size', {
+  enumerable: true,
+  get: function () {
+    return this.items.length;
+  }
+});
 Record.prototype.isEmpty = function () {
   return this.size === 0;
+};
+Record.prototype.isArray = function () {
+  return this.items.length >= 0 && Object.getOwnPropertyNames(this.index).length === 0;
 };
 Record.prototype.isMarkup = function () {
   function isBlank(string) {
@@ -157,49 +179,88 @@ Record.prototype.isMarkup = function () {
   }
   return hasNonText && sections >= 2;
 };
+Record.prototype.iterator = function () {
+  return new RecordIterator(this.items);
+};
+Record.prototype.each = function (f) {
+  var these = this.iterator();
+  while (!these.isEmpty) f(these.next());
+};
+Record.prototype.equals = function (that) {
+  var these = this.iterator();
+  var those = that.iterator();
+  while (!these.isEmpty() && !those.isEmpty()) {
+    if (!compare(these.next(), those.next())) return false;
+  }
+  return these.isEmpty() && those.isEmpty();
+};
 Record.prototype.toString = function () {
   var writer = new ReconWriter();
   writer.writeRecord(this);
   return writer.state();
 };
+Record.empty = function () {
+  return new Record([], {});
+};
 
 
 function Field() {}
-Field.prototype.isField = true;
-Field.prototype.isAttr = false;
-Field.prototype.isSlot = false;
+Object.defineProperty(Field.prototype, 'isField', {enumerable: true, value: true});
+Object.defineProperty(Field.prototype, 'isAttr', {enumerable: true, value: false});
+Object.defineProperty(Field.prototype, 'isSlot', {enumerable: true, value: false});
 
 function Attr(key, value) {
   Field.call(this);
-  this.key = key;
-  this.value = typeof value === 'undefined' ? Extant : value;
+  Object.defineProperty(this, 'key', {enumerable: true, value: key});
+  if (typeof value === 'undefined') value = Extant;
+  Object.defineProperty(this, 'value', {enumerable: true, value: value});
 }
 Attr.prototype = Object.create(Field.prototype);
 Attr.prototype.constructor = Attr;
-Attr.prototype.isAttr = true;
+Object.defineProperty(Attr.prototype, 'isAttr', {enumerable: true, value: true});
+Attr.prototype.equals = function (that) {
+  return that.isAttr && compare(this.key, that.key) && compare(this.value, that.value);
+};
 
 function Slot(key, value) {
   Field.call(this);
-  this.key = key;
-  this.value = typeof value === 'undefined' ? Extant : value;
+  Object.defineProperty(this, 'key', {enumerable: true, value: key});
+  if (typeof value === 'undefined') value = Extant;
+  Object.defineProperty(this, 'value', {enumerable: true, value: value});
 }
 Slot.prototype = Object.create(Field.prototype);
 Slot.prototype.constructor = Slot;
-Slot.prototype.isSlot = true;
-
-
-var Extant = {
-  isExtant: true
+Object.defineProperty(Slot.prototype, 'isSlot', {enumerable: true, value: true});
+Slot.prototype.equals = function (that) {
+  return that.isSlot && compare(this.key, that.key) && compare(this.value, that.value);
 };
 
-var Absent = {
-  isAbsent: true
+
+var Data = {};
+Data.fromBase64 = function (string) {
+  var data = new DataBuilder();
+  var cs = new StringIterator(string);
+  while (!cs.isEmpty()) {
+    data.appendBase64Char(cs.head());
+    cs.step();
+  }
+  return data.state();
 };
+Data.empty = function () {
+  return new Uint8Array(0);
+};
+
+
+var Extant = {};
+Object.defineProperty(Extant, 'isExtant', {enumerable: true, value: true});
+
+var Absent = {};
+Object.defineProperty(Absent, 'isAbsent', {enumerable: true, value: true});
 
 
 function RecordIterator(items, index) {
-  this.items = items;
-  this.index = index || 0;
+  Object.defineProperty(this, 'items', {value: items});
+  Object.defineProperty(this, 'index', {value: index || 0, writable: true});
 }
 RecordIterator.prototype.isEmpty = function () {
   return this.index >= this.items.length;
@@ -212,11 +273,17 @@ RecordIterator.prototype.step = function () {
   if (this.index >= this.items.length) throw 'empty iterator step';
   this.index += 1;
 };
+RecordIterator.prototype.next = function () {
+  if (this.index >= this.items.length) return null;
+  var item = this.items[this.index];
+  this.index += 1;
+  return item;
+};
 
 
 function RecordBuilder() {
-  this.items = [];
-  this.index = {};
+  Object.defineProperty(this, 'items', {value: []});
+  Object.defineProperty(this, 'index', {value: {}});
 }
 RecordBuilder.prototype.appendField = function (field) {
   this.items.push(field);
@@ -225,21 +292,35 @@ RecordBuilder.prototype.appendField = function (field) {
 RecordBuilder.prototype.appendValue = function (value) {
   this.items.push(value);
 };
+RecordBuilder.prototype.attr = function (key, value) {
+  if (typeof value === 'undefined') value = Extant;
+  this.appendField(new Attr(coerce(key), coerce(value)));
+  return this;
+};
+RecordBuilder.prototype.slot = function (key, value) {
+  if (typeof value === 'undefined') value = Extant;
+  this.appendField(new Slot(coerce(key), coerce(value)));
+  return this;
+};
+RecordBuilder.prototype.item = function (value) {
+  this.appendValue(coerce(value));
+  return this;
+};
 RecordBuilder.prototype.state = function () {
   return new Record(this.items, this.index);
 };
 
 
 function ValueBuilder() {
-  this.items = null;
-  this.index = null;
-  this.value = null;
+  Object.defineProperty(this, 'items', {value: null, writable: true});
+  Object.defineProperty(this, 'index', {value: null, writable: true});
+  Object.defineProperty(this, 'value', {value: null, writable: true});
 }
 ValueBuilder.prototype.appendField = function (field) {
-  if (!this.items) {
+  if (this.items === null) {
     this.items = [];
     this.index = {};
-    if (this.value) {
+    if (this.value !== null) {
       this.items.push(this.value);
       this.value = null;
     }
@@ -248,8 +329,8 @@ ValueBuilder.prototype.appendField = function (field) {
   this.index[field.key] = field.value;
 };
 ValueBuilder.prototype.appendValue = function (value) {
-  if (this.items) this.items.push(value);
-  else if (!this.value) this.value = value;
+  if (this.items !== null) this.items.push(value);
+  else if (this.value === null) this.value = value;
   else {
     this.items = [];
     this.index = {};
@@ -259,15 +340,15 @@ ValueBuilder.prototype.appendValue = function (value) {
   }
 };
 ValueBuilder.prototype.state = function () {
-  if (this.value) return this.value;
-  else if (this.items) return new Record(this.items, this.index);
+  if (this.value !== null) return this.value;
+  else if (this.items !== null) return new Record(this.items, this.index);
   else return Absent;
 };
 
 
 function StringIterator(string, index) {
-  this.string = string || '';
-  this.index = index || 0;
+  Object.defineProperty(this, 'string', {value: string || ''});
+  Object.defineProperty(this, 'index', {value: index || 0, writable: true});
 }
 StringIterator.prototype.isDone = function () {
   return false;
@@ -378,7 +459,7 @@ StringIteratee.unexpectedEOF = new StringIteratee.Error('unexpected end of input
 
 
 function StringBuilder() {
-  this.string = '';
+  Object.defineProperty(this, 'string', {value: '', writable: true});
 }
 StringBuilder.prototype.append = function (c) {
   if ((c >= 0x0000 && c <= 0xD7FF) ||
@@ -406,13 +487,13 @@ StringBuilder.prototype.state = function () {
 
 
 function DataBuilder() {
-  this.buffer = null;
-  this.offset = 0;
-  this.aliased = true;
-  this.p = 0;
-  this.q = 0;
-  this.r = 0;
-  this.s = 0;
+  Object.defineProperty(this, 'buffer', {value: null, writable: true});
+  Object.defineProperty(this, 'offset', {value: 0, writable: true});
+  Object.defineProperty(this, 'aliased', {value: true, writable: true});
+  Object.defineProperty(this, 'p', {value: 0, writable: true});
+  Object.defineProperty(this, 'q', {value: 0, writable: true});
+  Object.defineProperty(this, 'r', {value: 0, writable: true});
+  Object.defineProperty(this, 's', {value: 0, writable: true});
 }
 DataBuilder.prototype.prepare = function (size) {
   function expand(base, size) {
@@ -798,8 +879,7 @@ BlockValueParser.prototype.feed = function (input) {
     }
     if (s === 5) {
       while ((!input.isEmpty() || input.isDone()) && value.isCont()) value = value.feed(input);
-      if (value.isDone()) return new StringIteratee.Done(builder.state());
-      else if (value.isError()) return value;
+      if (value.isDone() || value.isError()) return value;
     }
   }
   return new BlockValueParser(builder, field, value, s);
@@ -1455,19 +1535,25 @@ IdentParser.prototype.feed = function (input) {
       input.step();
       builder.append(c);
     }
-    if (!input.isEmpty() || input.isDone()) return new StringIteratee.Done(builder.state());
+    if (!input.isEmpty() || input.isDone()) {
+      var value = builder.state();
+      if (value === 'true') value = true;
+      else if (value === 'false') value = false;
+      return new StringIteratee.Done(value);
+    }
   }
   return new IdentParser(builder, s);
 };
 
 
 function ReconWriter(builder) {
-  this.builder = builder || new StringBuilder();
+  Object.defineProperty(this, 'builder', {value: builder || new StringBuilder()});
 }
 ReconWriter.prototype.writeValue = function (value, inMarkup) {
   if (value instanceof Record) this.writeRecord(value, inMarkup);
   else if (typeof value === 'string') this.writeText(value, inMarkup);
   else if (typeof value === 'number') this.writeNumber(value);
+  else if (typeof value === 'boolean') this.writeBool(value);
   else if (value instanceof Uint8Array) this.writeData(value);
 };
 ReconWriter.prototype.writeAttr = function(attr) {
@@ -1543,8 +1629,10 @@ ReconWriter.prototype.writeRecord = function (record, inMarkup) {
           this.writeValue(item);
           this.builder.append(125/*'}'*/);
         }
-        else if (typeof item === 'string') this.writeString(item);
-        else this.writeValue(item);
+        else {
+          this.builder.append(32/*' '*/);
+          this.writeValue(item);
+        }
       }
       else {
         this.builder.append(123/*'{'*/);
@@ -1657,6 +1745,9 @@ ReconWriter.prototype.writeTextMarkup = function (text) {
 ReconWriter.prototype.writeNumber = function (number) {
   this.builder.appendString(number.toString());
 };
+ReconWriter.prototype.writeBool = function (bool) {
+  this.builder.appendString(bool.toString());
+};
 ReconWriter.prototype.writeData = function (data) {
   function encodeBase64Digit(x) {
     if      (x >=  0 && x < 26) return x + 65/*'A'*/;
@@ -1709,11 +1800,12 @@ exports = module.exports;
 exports.parse = parse;
 exports.stringify = stringify;
 exports.objectify = objectify;
+exports.compare = compare;
+exports.builder = builder;
 exports.Field = Field;
 exports.Attr = Attr;
 exports.Slot = Slot;
 exports.Record = Record;
+exports.Data = Data;
 exports.Extant = Extant;
 exports.Absent = Absent;
-exports.RecordBuilder = RecordBuilder;
-exports.ValueBuilder = ValueBuilder;
