@@ -16,6 +16,7 @@
   ],
   "devDependencies": {
     "browserify": "^9.0.3",
+    "coveralls": "^2.11.2",
     "gulp": "^3.8.11",
     "gulp-coveralls": "^0.1.3",
     "gulp-istanbul": "^0.6.0",
@@ -40,7 +41,7 @@
   },
   "scripts": {
     "test": "gulp",
-    "coveralls": "istanbul cover _mocha --report lcovonly -- -R spec && cat ./coverage/lcov.info | coveralls && rm -rf ./coverage"
+    "coveralls": "cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js"
   },
   "main": "recon.js"
 }
