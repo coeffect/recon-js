@@ -196,6 +196,12 @@ into Node.js projects.
 npm install --save recon
 ```
 
+```js
+var recon = require('recon-js');
+
+var record = recon.parse('[Welcome @a(href:"index.html")@em[home].]');
+```
+
 ## JavaScript API
 
 ### recon(values)
