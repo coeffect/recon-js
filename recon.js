@@ -3,7 +3,9 @@
 function coerce() {
   if (arguments.length === 1) {
     var item = arguments[0];
-    if (item instanceof Attr || item instanceof Slot) {
+    if (item === null) return Extant;
+    else if (typeof item === 'undefined') return Absent;
+    else if (item instanceof Attr || item instanceof Slot) {
       var builder = new RecordBuilder();
       builder.appendField(item);
       return builder.state();
@@ -72,14 +74,14 @@ function parse(string) {
   return result.state();
 }
 
-function stringify(value) {
+function stringify() {
   var writer = new ReconWriter();
-  writer.writeBlock(value);
+  writer.writeBlock(coerce.apply(null, arguments));
   return writer.state();
 }
 
 function objectify(value) {
-  if (value === null || value.isExtant) return null;
+  if (value === null || typeof value === 'undefined' || value.isExtant) return null;
   else if (value.isAbsent) return undefined;
   else if (value instanceof Record) {
     if (value.isArray()) return objectifyArray(value);
@@ -100,9 +102,8 @@ function objectifyArray(record) {
 function objectifyObject(record) {
   var items = record.iterator();
   var key, value;
-  var attrs = {};
-  var object = {'@': attrs};
-  var hasAttrs = false;
+  var object = {};
+  var attrs = null;
   var i = 0;
   while (!items.isEmpty()) {
     var item = items.head();
@@ -110,19 +111,19 @@ function objectifyObject(record) {
       key = objectify(item.key);
       value = objectify(item.value);
       if (item.isAttr) {
+        if (attrs === null) attrs = {};
         attrs[key] = value;
-        hasAttrs = true;
       }
       else object[key] = value;
     }
     else {
-      value = objectify(item.value);
+      value = objectify(item);
       object[i] = value;
     }
     items.step();
     i += 1;
   }
-  if (!hasAttrs) delete object['@'];
+  if (attrs !== null) object['@'] = attrs;
   return object;
 }
 
@@ -171,8 +172,8 @@ function compare(x, y) {
 
 function Record(items, index) {
   var record = function(key) {
-    var value = this.index[key];
-    if (typeof value === 'undefined' && typeof key === 'number') value = this.items[key];
+    var value = index[key];
+    if (typeof value === 'undefined' && typeof key === 'number') value = items[key];
     return value;
   };
   record.__proto__ = Record.prototype;
@@ -225,7 +226,7 @@ Record.prototype.iterator = function () {
 };
 Record.prototype.each = function (f) {
   var these = this.iterator();
-  while (!these.isEmpty) f(these.next());
+  while (!these.isEmpty()) f(these.next());
 };
 Record.prototype.equals = function (that) {
   var these = this.iterator();
@@ -1617,15 +1618,27 @@ ReconWriter.prototype.writeBlock = function (value) {
       hasAttrs = true;
     }
     if (!items.isEmpty()) {
-      if (hasAttrs) this.builder.append(123/*'{'*/);
-      this.writeItem(items.head());
       items.step();
-      while (!items.isEmpty()) {
-        this.builder.append(44/*','*/);
-        this.writeItem(items.head());
-        items.step();
+      if (hasAttrs && items.isEmpty()) {
+        if (item.isSlot) {
+          this.builder.append(123/*'{'*/);
+          this.writeItem(item);
+          this.builder.append(125/*'}'*/);
+        }
+        else {
+          this.builder.append(32/*' '*/);
+          this.writeValue(item);
+        }
       }
-      if (hasAttrs) this.builder.append(125/*'}'*/);
+      else {
+        this.writeItem(item);
+        while (!items.isEmpty()) {
+          item = items.head();
+          this.builder.append(44/*','*/);
+          this.writeItem(item);
+          items.step();
+        }
+      }
     }
     else if (!hasAttrs) {
       this.builder.append(123/*'{'*/);
@@ -1651,13 +1664,13 @@ ReconWriter.prototype.writeRecord = function (record, inMarkup) {
           if (item instanceof Record || typeof item === 'string') this.writeValue(item, inMarkup);
           else {
             this.builder.append(123/*'{'*/);
-            this.writeValue(item);
+            this.writeItem(item);
             this.builder.append(125/*'}'*/);
           }
         }
         else if (item.isSlot) {
           this.builder.append(123/*'{'*/);
-          this.writeValue(item);
+          this.writeItem(item);
           this.builder.append(125/*'}'*/);
         }
         else {
@@ -1825,7 +1838,7 @@ ReconWriter.prototype.state = function () {
 
 
 module.exports = function () {
-  return coerce.apply(this, arguments);
+  return coerce.apply(null, arguments);
 };
 exports = module.exports;
 exports.parse = parse;

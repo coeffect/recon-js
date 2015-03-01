@@ -2,7 +2,8 @@
 
 var browserify = require('browserify');
 var gulp = require('gulp');
-var coverage = require('gulp-coverage');
+var coveralls = require('gulp-coveralls');
+var istanbul = require('gulp-istanbul');
 var jshint = require('gulp-jshint');
 var mocha = require('gulp-mocha');
 var sourcemaps = require('gulp-sourcemaps');
@@ -32,20 +33,25 @@ gulp.task('build', function() {
     .pipe(gulp.dest('./'));
 });
 
-gulp.task('test', function () {
-  return gulp.src('./recon-test.js', {read: false})
-    .pipe(mocha())
+gulp.task('test', function (callback) {
+  gulp.src('./recon.js')
+    .pipe(istanbul())
+    .pipe(istanbul.hookRequire())
+    .on('finish', function () {
+      gulp.src('./recon-test.js')
+        .pipe(mocha())
+        .pipe(istanbul.writeReports({
+          reporters: ['html', 'lcov', 'text-summary']
+        }))
+        .on('end', callback);
+    });
 });
 
-gulp.task('coverage', function () {
-  return gulp.src('./recon-test.js', {read: false})
-    .pipe(coverage.instrument({pattern: './recon.js'}))
-    .pipe(mocha())
-    .pipe(coverage.gather())
-    .pipe(coverage.format())
-    .pipe(gulp.dest('./'));
+gulp.task('coveralls', function() {
+  return gulp.src('./coverage/lcov.info')
+    .pipe(coveralls());
 });
 
 gulp.task('default', function (callback) {
-  runSequence('lint', 'build', 'test', callback);
+  runSequence(['lint', 'build'], 'test', callback);
 });
