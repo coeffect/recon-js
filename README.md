@@ -202,9 +202,9 @@ var recon = require('recon-js');
 var record = recon.parse('[Welcome @a(href:"index.html")@em[home].]');
 ```
 
-## JavaScript API
+### Module API
 
-### recon(values)
+#### recon(values)
 
 Coerces one or more JavaScript values to a RECON value.  `string`, `number`,
 `boolean`, and `Uint8Array` and valid RECON values pass through unchanged.
@@ -217,44 +217,44 @@ recon('Hello, ', recon(recon.attr('em'), 'world'), '!'); // [Hello, @em[world]!]
 recon({'@':{event: 'onClick'}, x: 23, y: 42}); // @event(onClick){x:23,y:42}
 ```
 
-### recon.attr(key, value)
+#### recon.attr(key, value)
 
 Coerces `key` and `value` and creates a `recon.Attr`.
 
-### recon.slot(key, value)
+#### recon.slot(key, value)
 
 Coerces `key` and `value` and creates a `recon.Slot`.
 
-### recon.extant
+#### recon.extant
 
 Returns the singleton Extant value.
 
-### recon.absent
+#### recon.absent
 
 Returns the singleton Absent value.
 
-### recon.empty()
+#### recon.empty()
 
 Returns an empty record.
 
-### recon.base64(string)
+#### recon.base64(string)
 
 Base64-decodes a `string` into a `Uint8Array`.
 
-### recon.parse(string)
+#### recon.parse(string)
 
 Parses a string for a RECON value.
 
-### recon.stringify(value)
+#### recon.stringify(value)
 
 Serializes a JavaScript value as a RECON string.
 
-### recon.objectify(value)
+#### recon.objectify(value)
 
 Transforms a RECON value to an approximate JSON object.  Note that JSON cannot
 faithfully represent all RECON values.
 
-### recon.builder()
+#### recon.builder()
 
 Returns a RECON builder object.  Append attributes with `.attr(key, value)`,
 slots with `.slot(key, value)`, and other items with `.item(value)`.  All input
@@ -265,13 +265,17 @@ with `.state()`.
 recon.builder().attr('event', 'onClick').item('window').state(); // '@event(onClick) window'
 ```
 
-## JavaScript Record API
+#### recon.compare(a, b)
+
+Compares two RECON values for equality.
+
+### Record API
 
 ```js
 var record = recon.parse('@subject("Re: Greetings") "Hi Martians!"');
 ```
 
-### record(key)
+#### record(key)
 
 Lookups up an attribute or slot value by `key`; if `record` doesn't contain
 `key`, and `key` is an integer, returns the item at index `key`.
@@ -281,15 +285,15 @@ record('subject'); // 'Re: Greetings'
 record(1); // 'Hi Martians!'
 ```
 
-### record.isEmpty
+#### record.isEmpty
 
 Returns `true` if `record` has no items.
 
-### record.size
+#### record.size
 
 Returns the number of items in `record`.
 
-### record.each(function)
+#### record.each(function)
 
 Calls `function` with each item in `record`.
 
@@ -298,6 +302,42 @@ record.each(function (item) { console.log(item.toString()); });
 // @subject("Re: Greetings")
 // Hi Martians!
 ```
+
+#### record.iterator()
+
+Returns an iterator that steps through each item in `record`.
+
+```js
+var items = record.iterator();
+while (!items.isEmpty()) {
+  var item = items.next();
+  console.log(item.toString());
+}
+```
+
+### Field API
+
+Fields represent keyed items in a record.
+
+#### item.isField
+
+Returns `true` if `item` is either an `attr` or a `slot`.
+
+#### item.isAttr
+
+Returns `true` if `item` is an `attr`.
+
+#### item.isSlot
+
+Returns `true` if `item` is a `slot`.
+
+#### field.key
+
+Returns the `attr` or `slot`'s key.
+
+#### field.value
+
+Returns the `attr` or `slot`'s value.
 
 ## Language Grammar
 
