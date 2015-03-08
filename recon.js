@@ -171,6 +171,16 @@ function compare(x, y) {
 
 
 function Record(items, index) {
+  if (typeof index === 'undefined') {
+    index = {};
+    var i = 0;
+    var n = items.length;
+    while (i < n) {
+      var item = items[i];
+      if (item.isField) index[item.key] = item.value;
+      i += 1;
+    }
+  }
   var record = function(key) {
     var value = index[key];
     if (typeof value === 'undefined' && typeof key === 'number') value = items[key];
@@ -190,7 +200,7 @@ Object.defineProperty(Record.prototype, 'size', {
   }
 });
 Record.prototype.isEmpty = function () {
-  return this.size === 0;
+  return this.items.length === 0;
 };
 Record.prototype.isArray = function () {
   return this.items.length >= 0 && Object.getOwnPropertyNames(this.index).length === 0;
@@ -229,6 +239,18 @@ Record.prototype.hasPrefixAttrs = function () {
 };
 Record.prototype.hasPostfixAttrs = function () {
   return this.items.length > 0 && this.items[this.items.length - 1].isAttr;
+};
+Record.prototype.head = function () {
+  return this.items.length > 0 ? this.items[0] : Absent;
+};
+Record.prototype.tail = function () {
+  return new Record(this.items.slice(1));
+};
+Record.prototype.body = function () {
+  return new Record(this.items.slice(0, -1));
+};
+Record.prototype.foot = function () {
+  return this.items.length > 0 ? this.items[this.items.length - 1] : Absent;
 };
 Record.prototype.target = function () {
   var these = this.iterator();
@@ -332,6 +354,9 @@ RecordIterator.prototype.next = function () {
 };
 RecordIterator.prototype.dup = function () {
   return new RecordIterator(this.items, this.index);
+};
+RecordIterator.prototype.toRecord = function () {
+  return new Record(this.items.slice(this.index));
 };
 RecordIterator.prototype.isAllAttrs = function () {
   var items = this.dup();

@@ -79,6 +79,12 @@ describe('Recon coercion', function () {
       recon(attr('a', 1), slot('b', 2), 3));
   });
 
+  it('should convert iterators to records', function () {
+    var items = recon([1, 2, 3]).iterator();
+    items.step();
+    assert.same(items.toRecord(), recon([2, 3]));
+  });
+
   it('should objectify extant values', function () {
     assert.equal(objectify(extant), null);
   });
@@ -134,6 +140,40 @@ describe('Recon records', function () {
     assert(!recon(1, 2).hasPostfixAttrs());
   });
 
+  it('should have a head item', function () {
+    assert.same(recon([1, 2]).head(), 1);
+    assert.same(recon([1]).head(), 1);
+    assert.same(empty().head(), absent);
+  });
+
+  it('should have a tail record', function () {
+    assert.same(recon([1, 2, 3]).tail(), recon([2, 3]));
+    assert.same(recon([1, 2, 3]).tail().tail(), recon([3]));
+    assert.same(recon([1, 2, 3]).tail().tail().tail(), empty());
+  });
+
+  it('should have a body record', function () {
+    assert.same(recon([1, 2, 3]).body(), recon([1, 2]));
+    assert.same(recon([1, 2, 3]).body().body(), recon([1]));
+    assert.same(recon([1, 2, 3]).body().body().body(), empty());
+  });
+
+  it('should have a foot item', function () {
+    assert.same(recon([1, 2]).foot(), 2);
+    assert.same(recon([1]).foot(), 1);
+    assert.same(empty().foot(), absent);
+  });
+
+  it('should have a target value', function () {
+    assert.same(recon([42]).target(), 42);
+    assert.same(recon(attr('answer'), 42).target(), 42);
+    assert.same(recon(attr('x')).target(), absent);
+  });
+
+  it('should have a field index', function () {
+    assert.same(new recon.Record([1, 2, 3, slot('a', 1)])('a'), 1);
+  });
+
   it('should lookup attributes by name', function () {
     var record = recon(attr('answer', 42));
     assert.same(record('answer'), 42);
@@ -159,12 +199,6 @@ describe('Recon records', function () {
   it('should lookup slots by index', function () {
     var record = recon(slot('answer', 42));
     assert.same(record(0), slot('answer', 42));
-  });
-
-  it('should have a target value', function () {
-    assert.same(recon([42]).target(), 42);
-    assert.same(recon(attr('answer'), 42).target(), 42);
-    assert.same(recon(attr('x')).target(), absent);
   });
 
   it('should traverse each item', function () {

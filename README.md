@@ -293,13 +293,33 @@ record('subject'); // 'Re: Greetings'
 record(1); // 'Hi Martians!'
 ```
 
-#### record.isEmpty
+#### record.isEmpty()
 
 Returns `true` if `record` has no items.
 
 #### record.size
 
 Returns the number of items in `record`.
+
+#### record.head()
+
+Returns the first item in `record`, or `absent` if `record` is empty.
+
+#### record.tail()
+
+Returns all but the first item in `record`.
+
+#### record.body()
+
+Returns all but the last item in `record`.
+
+#### record.foot()
+
+Returns the last item in `record`, or `absent` if `record` is empty.
+
+#### record.target()
+
+Returns the first non-field value in `record`.
 
 #### record.each(function)
 
