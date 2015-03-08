@@ -221,6 +221,23 @@ Record.prototype.isMarkup = function () {
   }
   return hasNonText && sections >= 2;
 };
+Record.prototype.hasAttrs = function() {
+  return this.items.length > 0 && (this.items[0].isAttr || this.items[this.items.length - 1].isAttr);
+};
+Record.prototype.hasPrefixAttrs = function () {
+  return this.items.length > 0 && this.items[0].isAttr;
+};
+Record.prototype.hasPostfixAttrs = function () {
+  return this.items.length > 0 && this.items[this.items.length - 1].isAttr;
+};
+Record.prototype.target = function () {
+  var these = this.iterator();
+  while (!these.isEmpty()) {
+    var item = these.next();
+    if (!item.isField) return item;
+  }
+  return Absent;
+};
 Record.prototype.iterator = function () {
   return new RecordIterator(this.items);
 };
@@ -312,6 +329,16 @@ RecordIterator.prototype.next = function () {
   var item = this.items[this.index];
   this.index += 1;
   return item;
+};
+RecordIterator.prototype.dup = function () {
+  return new RecordIterator(this.items, this.index);
+};
+RecordIterator.prototype.isAllAttrs = function () {
+  var items = this.dup();
+  while (!items.isEmpty()) {
+    if (!items.next().isAttr) return false;
+  }
+  return true;
 };
 
 
@@ -842,24 +869,14 @@ BlockValueParser.prototype.feed = function (input) {
           s = 2;
         }
         else if (c === 123/*'{'*/) {
-          if (builder) {
-            value = new RecordParser(builder);
-            s = 5;
-          }
-          else {
-            value = new RecordParser();
-            s = 4;
-          }
+          builder = builder || new RecordBuilder();
+          value = new RecordParser(builder);
+          s = 5;
         }
         else if (c === 91/*'['*/) {
-          if (builder) {
-            value = new MarkupParser(builder);
-            s = 5;
-          }
-          else {
-            value = new MarkupParser();
-            s = 4;
-          }
+          builder = builder || new RecordBuilder();
+          value = new MarkupParser(builder);
+          s = 5;
         }
         else if (c === 34/*'"'*/) {
           value = new StringParser();
@@ -905,13 +922,39 @@ BlockValueParser.prototype.feed = function (input) {
       if (value.isDone()) {
         builder = builder || new ValueBuilder();
         builder.appendValue(value.state());
-        return new StringIteratee.Done(builder.state());
+        value = null;
+        s = 6;
       }
       else if (value.isError()) return value;
     }
     if (s === 5) {
       while ((!input.isEmpty() || input.isDone()) && value.isCont()) value = value.feed(input);
-      if (value.isDone() || value.isError()) return value;
+      if (value.isDone()) {
+        value = null;
+        s = 6;
+      }
+      else if (value.isError()) return value;
+    }
+    if (s === 6) {
+      while (!input.isEmpty() && isSpace(input.head())) input.step();
+      if (!input.isEmpty()) {
+        if (input.head() === 64/*'@'*/) {
+          field = new AttrParser();
+          s = 7;
+        }
+        else return new StringIteratee.Done(builder.state());
+      }
+      else if (input.isDone()) return new StringIteratee.Done(builder.state());
+    }
+    if (s === 7) {
+      while ((!input.isEmpty() || input.isDone()) && field.isCont()) field = field.feed(input);
+      if (field.isDone()) {
+        builder = builder || new ValueBuilder();
+        builder.appendField(field.state());
+        field = null;
+        s = 6;
+      }
+      else if (field.isError()) return field;
     }
   }
   return new BlockValueParser(builder, field, value, s);
@@ -1146,14 +1189,9 @@ MarkupParser.prototype.feed = function (input) {
       if (!input.isEmpty()) {
         if (c === 93/*']'*/) {
           input.step();
-          if (!builder) {
-            if (!text) text = text || new StringBuilder();
-            return new StringIteratee.Done(text.state());
-          }
-          else {
-            if (text) builder.appendValue(text.state());
-            return new StringIteratee.Done(builder.state());
-          }
+          builder = builder || new RecordBuilder();
+          if (text) builder.appendValue(text.state());
+          return new StringIteratee.Done(builder.state());
         }
         else if (c === 64/*'@'*/) {
           builder = builder || new RecordBuilder();
@@ -1608,41 +1646,15 @@ ReconWriter.prototype.writeItem = function(item) {
 ReconWriter.prototype.writeBlock = function (value) {
   if (!(value instanceof Record)) this.writeValue(value);
   else if (value.isMarkup()) this.writeMarkup(value);
+  else if (value.hasAttrs()) this.writeRecord(value);
   else {
     var items = value.iterator();
-    var item;
-    var hasAttrs = false;
-    while (!items.isEmpty() && (item = items.head(), item.isAttr)) {
-      this.writeAttr(item);
-      items.step();
-      hasAttrs = true;
-    }
     if (!items.isEmpty()) {
-      items.step();
-      if (hasAttrs && items.isEmpty()) {
-        if (item.isSlot) {
-          this.builder.append(123/*'{'*/);
-          this.writeItem(item);
-          this.builder.append(125/*'}'*/);
-        }
-        else {
-          this.builder.append(32/*' '*/);
-          this.writeValue(item);
-        }
+      this.writeItem(items.next());
+      while (!items.isEmpty()) {
+        this.builder.append(44/*','*/);
+        this.writeItem(items.next());
       }
-      else {
-        this.writeItem(item);
-        while (!items.isEmpty()) {
-          item = items.head();
-          this.builder.append(44/*','*/);
-          this.writeItem(item);
-          items.step();
-        }
-      }
-    }
-    else if (!hasAttrs) {
-      this.builder.append(123/*'{'*/);
-      this.builder.append(125/*'}'*/);
     }
   }
 };
@@ -1668,7 +1680,7 @@ ReconWriter.prototype.writeRecord = function (record, inMarkup) {
             this.builder.append(125/*'}'*/);
           }
         }
-        else if (item.isSlot) {
+        else if (item instanceof Record || item.isSlot) {
           this.builder.append(123/*'{'*/);
           this.writeItem(item);
           this.builder.append(125/*'}'*/);
@@ -1678,17 +1690,28 @@ ReconWriter.prototype.writeRecord = function (record, inMarkup) {
           this.writeValue(item);
         }
       }
+      else if (!items.isEmpty() && items.isAllAttrs()) {
+        if (item instanceof Record || item.isSlot) {
+          this.builder.append(123/*'{'*/);
+          this.writeItem(item);
+          this.builder.append(125/*'}'*/);
+        }
+        else {
+          if (hasAttrs) this.builder.append(32/*' '*/);
+          this.writeValue(item);
+        }
+      }
       else {
         this.builder.append(123/*'{'*/);
         this.writeItem(item);
-        while (!items.isEmpty()) {
-          item = items.head();
+        while (!items.isEmpty() && ((item = items.head(), !item.isAttr) || !items.isAllAttrs)) {
           this.builder.append(44/*','*/);
           this.writeItem(item);
           items.step();
         }
         this.builder.append(125/*'}'*/);
       }
+      while (!items.isEmpty()) this.writeAttr(items.next());
     }
     else if (!hasAttrs) {
       this.builder.append(123/*'{'*/);

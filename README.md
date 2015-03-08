@@ -15,11 +15,10 @@ RECON has three primitive datatypes: _text_, _number_, and _data_.
 
 #### Text
 
-Text values can take one of three forms: _string_, _markup_, or _identifier_.
+Text values can take one of two forms: _string_, or _identifier_.
 
 ```recon
 "string"
-[markup]
 identifier
 ```
 
@@ -167,7 +166,7 @@ the record's _target_.
 }
 ```
 
-Attributed records are concatenated to their preceding attributes.
+Attributes get prepended to the records they modify.
 
 ```recon
 @agent("007") @license("to-kill") {
@@ -184,6 +183,15 @@ Attributed records are concatenated to their preceding attributes.
     "James Bond"
   }
 }
+```
+
+Attributes may also appear after a value.  Postfix attributes get appended to
+the records theys modify.
+
+```recon
+30 @seconds
+6 @months @remaining
+@constant 299792458 @meters @seconds(-1)
 ```
 
 ## JavaScript Library
@@ -371,11 +379,13 @@ Block ::= WS* Slot SP* ((',' | ';' | NL) Block)? WS*
 
 Attr ::= '@' Ident ('(' WS* Block WS* ')')?
 
+Attrs ::= Attr SP* Attrs
+
 Slot ::= BlockValue (SP* ':' SP* BlockValue)?
 
-BlockValue ::= ((Attr SP* BlockValue) | Record | Markup | Ident | String | Number | Data)?
+BlockValue ::= Attrs? (Record | Markup | Ident | String | Number | Data)? Attrs?
 
-InlineValue ::= ((Attr SP* InlineValue) | Record | Markup)?
+InlineValue ::= Attrs? (Record | Markup)?
 
 Record ::= '{' WS* Block WS* '}'
 
