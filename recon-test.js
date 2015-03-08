@@ -79,6 +79,13 @@ describe('Recon coercion', function () {
       recon(attr('a', 1), slot('b', 2), 3));
   });
 
+  it('should append records to record builders', function () {
+    var record = builder();
+    record.item(1);
+    record.appendRecord(recon(2, slot('c', 3)));
+    assert.same(record.state(), recon(1, 2, slot('c', 3)));
+  });
+
   it('should convert iterators to records', function () {
     var items = recon([1, 2, 3]).iterator();
     items.step();
@@ -140,6 +147,19 @@ describe('Recon records', function () {
     assert(!recon(1, 2).hasPostfixAttrs());
   });
 
+  it('should know which keys they contain', function () {
+    var record = recon(1, 2, slot('c', 3), slot(6, 4), 5);
+    assert(record.contains(0));
+    assert(record.contains(1));
+    assert(record.contains(2));
+    assert(record.contains(3));
+    assert(record.contains(4));
+    assert(!record.contains(5));
+    assert(record.contains('c'));
+    assert(record.contains(6));
+    assert(!record.contains('d'));
+  });
+
   it('should have a head item', function () {
     assert.same(recon([1, 2]).head(), 1);
     assert.same(recon([1]).head(), 1);
@@ -168,6 +188,14 @@ describe('Recon records', function () {
     assert.same(recon([42]).target(), 42);
     assert.same(recon(attr('answer'), 42).target(), 42);
     assert.same(recon(attr('x')).target(), absent);
+  });
+
+  it('should concatenate items', function () {
+    assert.same(recon(1, 2).concat(3), recon(1, 2, 3));
+    assert.same(recon(1, 2).concat(3, 4), recon(1, 2, 3, 4));
+    assert.same(recon(1, 2).concat(slot('c', 3)), recon(1, 2, slot('c', 3)));
+    assert.same(recon(1, 2).concat(recon(3, 4)), recon(1, 2, 3, 4));
+    assert.same(recon(1, 2).concat(recon(slot('c', 3), 4)), recon(1, 2, slot('c', 3), 4));
   });
 
   it('should have a field index', function () {
@@ -203,7 +231,7 @@ describe('Recon records', function () {
 
   it('should traverse each item', function () {
     var sum = 0;
-    recon(2, 3, 5, 7).each(function (x) { sum += x; });
+    recon(2, 3, 5, 7).forEach(function (x) { sum += x; });
     assert.equal(sum, 17);
   });
 });

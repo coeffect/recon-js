@@ -321,12 +321,22 @@ Returns the last item in `record`, or `absent` if `record` is empty.
 
 Returns the first non-field value in `record`.
 
-#### record.each(function)
+#### record.concat(values)
+
+Returns a copy of `record` with coerced `values` appended.  If `values` is a
+single record argument, its items get appended.
+
+```js
+recon(1, 2).concat(3, 4) // '1,2,3,4'
+recon(1, 2).concat(recon(3, 4)) // '1,2,3,4'
+```
+
+#### record.forEach(function)
 
 Calls `function` with each item in `record`.
 
 ```js
-record.each(function (item) { console.log(item.toString()); });
+record.forEach(function (item) { console.log(item.toString()); });
 // @subject("Re: Greetings")
 // Hi Martians!
 ```

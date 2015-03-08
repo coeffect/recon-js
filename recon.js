@@ -240,6 +240,9 @@ Record.prototype.hasPrefixAttrs = function () {
 Record.prototype.hasPostfixAttrs = function () {
   return this.items.length > 0 && this.items[this.items.length - 1].isAttr;
 };
+Record.prototype.contains = function (key) {
+  return typeof this(key) !== 'undefined';
+};
 Record.prototype.head = function () {
   return this.items.length > 0 ? this.items[0] : Absent;
 };
@@ -260,10 +263,18 @@ Record.prototype.target = function () {
   }
   return Absent;
 };
+Record.prototype.concat = function () {
+  var builder = new RecordBuilder();
+  builder.appendRecord(this);
+  var that = coerce.apply(null, arguments);
+  if (that instanceof Record) builder.appendRecord(that);
+  else builder.appendValue(that);
+  return builder.state();
+};
 Record.prototype.iterator = function () {
   return new RecordIterator(this.items);
 };
-Record.prototype.each = function (f) {
+Record.prototype.forEach = function (f) {
   var these = this.iterator();
   while (!these.isEmpty()) f(these.next());
 };
@@ -377,6 +388,14 @@ RecordBuilder.prototype.appendField = function (field) {
 };
 RecordBuilder.prototype.appendValue = function (value) {
   this.items.push(value);
+};
+RecordBuilder.prototype.appendRecord = function (record) {
+  var items = record.iterator();
+  while (!items.isEmpty()) {
+    var item = items.next();
+    if (item.isField) this.appendField(item);
+    else this.appendValue(item);
+  }
 };
 RecordBuilder.prototype.attr = function (key, value) {
   this.appendField(attr(key, value));
