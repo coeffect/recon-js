@@ -1,6 +1,6 @@
 # Record Notation (RECON)
 
-[![Build Status](https://travis-ci.org/coeffect/recon-js.svg?branch=master)](https://travis-ci.org/coeffect/recon-js) [![Coveralls Status](http://img.shields.io/coveralls/coeffect/recon-js/master.svg)](https://coveralls.io/r/coeffect/recon-js)
+[![Build Status](https://travis-ci.org/coeffect/recon-js.svg?branch=master)](https://travis-ci.org/coeffect/recon-js) [![Coverage Status](https://coveralls.io/repos/coeffect/recon-js/badge.svg?branch=master)](https://coveralls.io/r/coeffect/recon-js?branch=master)
 
 RECON brings attributes into the era of object notation, and provides a simple
 grammar and uniform tree model for attributed text markup.  RECON aims to
@@ -201,7 +201,7 @@ JavaScript environment.  Use `npm` to incorporate the RECON JavaScript library
 into Node.js projects.
 
 ```
-npm install --save recon
+npm install --save recon-js
 ```
 
 ```js
