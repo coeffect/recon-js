@@ -20,6 +20,7 @@ assert.same = function (x, y) {
     assert.fail(false, true, recon.stringify(x) +' did not equal '+ recon.stringify(y));
 };
 
+
 describe('Recon coercion', function () {
   it('should coerce undefined values', function () {
     assert.same(recon(), absent);

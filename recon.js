@@ -3,9 +3,9 @@
 function coerce() {
   if (arguments.length === 1) {
     var item = arguments[0];
-    if (item === null) return Extant;
-    else if (typeof item === 'undefined') return Absent;
-    else if (item instanceof Attr || item instanceof Slot) {
+    if (item === undefined) return Absent;
+    else if (item === null) return Extant;
+    else if (item.isAttr || item.isSlot) {
       var builder = new RecordBuilder();
       builder.appendField(item);
       return builder.state();
@@ -17,9 +17,9 @@ function coerce() {
 }
 function coerceItem(item) {
   if (item === null) return Extant;
-  else if (item instanceof Record ||
-           item instanceof Attr ||
-           item instanceof Slot ||
+  else if (item.isRecord ||
+           item.isAttr ||
+           item.isSlot ||
            typeof item === 'string' ||
            typeof item === 'number' ||
            typeof item === 'boolean' ||
@@ -81,9 +81,9 @@ function stringify() {
 }
 
 function objectify(value) {
-  if (value === null || typeof value === 'undefined' || value.isExtant) return null;
+  if (value === undefined || value === null || value.isExtant) return null;
   else if (value.isAbsent) return undefined;
-  else if (value instanceof Record) {
+  else if (value.isRecord) {
     if (value.isArray()) return objectifyArray(value);
     else return objectifyObject(value);
   }
@@ -128,7 +128,7 @@ function objectifyObject(record) {
 }
 
 function base64(string) {
-  if (typeof string === 'undefined') return new Uint8Array(0);
+  if (string === undefined) return new Uint8Array(0);
   var data = new DataBuilder();
   var cs = new StringIterator(string);
   while (!cs.isEmpty()) {
@@ -139,12 +139,12 @@ function base64(string) {
 }
 
 function attr(key, value) {
-  if (typeof value === 'undefined') value = Extant;
+  if (value === undefined) value = Extant;
   return new Attr(coerce(key), coerce(value));
 }
 
 function slot(key, value) {
-  if (typeof value === 'undefined') value = Extant;
+  if (value === undefined) value = Extant;
   return new Slot(coerce(key), coerce(value));
 }
 
@@ -158,7 +158,7 @@ function builder() {
 
 function compare(x, y) {
   if (x === y) return true;
-  if (x instanceof Record && y instanceof Record) return x.equals(y);
+  if (x.isRecord && y.isRecord) return x.equals(y);
   if (x.isField && y.isField) return x.equals(y);
   if (x instanceof Uint8Array && y instanceof Uint8Array && x.length === y.length) {
     var i = 0;
@@ -171,7 +171,7 @@ function compare(x, y) {
 
 
 function Record(items, index) {
-  if (typeof index === 'undefined') {
+  if (index === undefined) {
     index = {};
     var i = 0;
     var n = items.length;
@@ -183,7 +183,7 @@ function Record(items, index) {
   }
   var record = function(key) {
     var value = index[key];
-    if (typeof value === 'undefined' && typeof key === 'number') value = items[key];
+    if (value === undefined && typeof key === 'number') value = items[key];
     return value;
   };
   record.__proto__ = Record.prototype;
@@ -193,6 +193,7 @@ function Record(items, index) {
 }
 Record.prototype = Object.create(Function.prototype);
 Record.prototype.constructor = Record;
+Object.defineProperty(Record.prototype, 'isRecord', {enumerable: true, value: true});
 Object.defineProperty(Record.prototype, 'size', {
   enumerable: true,
   get: function () {
@@ -241,7 +242,7 @@ Record.prototype.hasPostfixAttrs = function () {
   return this.items.length > 0 && this.items[this.items.length - 1].isAttr;
 };
 Record.prototype.contains = function (key) {
-  return typeof this(key) !== 'undefined';
+  return this(key) !== undefined;
 };
 Record.prototype.head = function () {
   return this.items.length > 0 ? this.items[0] : Absent;
@@ -267,7 +268,7 @@ Record.prototype.concat = function () {
   var builder = new RecordBuilder();
   builder.appendRecord(this);
   var that = coerce.apply(null, arguments);
-  if (that instanceof Record) builder.appendRecord(that);
+  if (that.isRecord) builder.appendRecord(that);
   else builder.appendValue(that);
   return builder.state();
 };
@@ -301,7 +302,7 @@ Object.defineProperty(Field.prototype, 'isSlot', {enumerable: true, value: false
 function Attr(key, value) {
   Field.call(this);
   Object.defineProperty(this, 'key', {enumerable: true, value: key});
-  if (typeof value === 'undefined') value = Extant;
+  if (value === undefined) value = Extant;
   Object.defineProperty(this, 'value', {enumerable: true, value: value});
 }
 Attr.prototype = Object.create(Field.prototype);
@@ -319,7 +320,7 @@ Attr.prototype.toString = function () {
 function Slot(key, value) {
   Field.call(this);
   Object.defineProperty(this, 'key', {enumerable: true, value: key});
-  if (typeof value === 'undefined') value = Extant;
+  if (value === undefined) value = Extant;
   Object.defineProperty(this, 'value', {enumerable: true, value: value});
 }
 Slot.prototype = Object.create(Field.prototype);
@@ -1664,7 +1665,7 @@ function ReconWriter(builder) {
   Object.defineProperty(this, 'builder', {value: builder || new StringBuilder()});
 }
 ReconWriter.prototype.writeValue = function (value, inMarkup) {
-  if (value instanceof Record) this.writeRecord(value, inMarkup);
+  if (value.isRecord) this.writeRecord(value, inMarkup);
   else if (typeof value === 'string') this.writeText(value, inMarkup);
   else if (typeof value === 'number') this.writeNumber(value);
   else if (typeof value === 'boolean') this.writeBool(value);
@@ -1688,7 +1689,7 @@ ReconWriter.prototype.writeItem = function(item) {
   else this.writeValue(item);
 };
 ReconWriter.prototype.writeBlock = function (value) {
-  if (!(value instanceof Record)) this.writeValue(value);
+  if (!value.isRecord) this.writeValue(value);
   else if (value.isMarkup()) this.writeMarkup(value);
   else if (value.hasAttrs()) this.writeRecord(value);
   else {
@@ -1717,14 +1718,14 @@ ReconWriter.prototype.writeRecord = function (record, inMarkup) {
       items.step();
       if (hasAttrs && items.isEmpty()) {
         if (inMarkup) {
-          if (item instanceof Record || typeof item === 'string') this.writeValue(item, inMarkup);
+          if (item.isRecord || typeof item === 'string') this.writeValue(item, inMarkup);
           else {
             this.builder.append(123/*'{'*/);
             this.writeItem(item);
             this.builder.append(125/*'}'*/);
           }
         }
-        else if (item instanceof Record || item.isSlot) {
+        else if (item.isRecord || item.isSlot) {
           this.builder.append(123/*'{'*/);
           this.writeItem(item);
           this.builder.append(125/*'}'*/);
@@ -1735,7 +1736,7 @@ ReconWriter.prototype.writeRecord = function (record, inMarkup) {
         }
       }
       else if (!items.isEmpty() && items.isAllAttrs()) {
-        if (item instanceof Record || item.isSlot) {
+        if (item.isRecord || item.isSlot) {
           this.builder.append(123/*'{'*/);
           this.writeItem(item);
           this.builder.append(125/*'}'*/);
@@ -1791,7 +1792,7 @@ ReconWriter.prototype.writeMarkup = function (record) {
         cs.step();
       }
     }
-    else if (item instanceof Record) this.writeRecord(item, true);
+    else if (item.isRecord) this.writeRecord(item, true);
     else {
       this.builder.append(123/*'{'*/);
       this.writeItem(item);

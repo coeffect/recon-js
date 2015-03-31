@@ -293,13 +293,13 @@ record('subject'); // 'Re: Greetings'
 record(1); // 'Hi Martians!'
 ```
 
-#### record.isEmpty()
-
-Returns `true` if `record` has no items.
-
 #### record.size
 
 Returns the number of items in `record`.
+
+#### record.isEmpty()
+
+Returns `true` if `record` has no items.
 
 #### record.head()
 
