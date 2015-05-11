@@ -1,21 +1,26 @@
 'use strict';
 
 var browserify = require('browserify');
-var gulp = require('gulp');
+var buffer = require('vinyl-buffer');
 var coveralls = require('gulp-coveralls');
+var gulp = require('gulp');
 var istanbul = require('gulp-istanbul');
+var jscs = require('gulp-jscs');
 var jshint = require('gulp-jshint');
 var mocha = require('gulp-mocha');
-var sourcemaps = require('gulp-sourcemaps');
-var uglify = require('gulp-uglify');
 var runSequence = require('run-sequence');
-var buffer = require('vinyl-buffer');
 var source = require('vinyl-source-stream');
+var sourcemaps = require('gulp-sourcemaps');
+var stylish = require('gulp-jscs-stylish');
+var uglify = require('gulp-uglify');
 
 gulp.task('lint', function () {
   return gulp.src(['./recon.js', './recon-test.js'])
     .pipe(jshint())
-    .pipe(jshint.reporter('jshint-stylish'))
+    .pipe(jscs())
+    .on('error', function () {})
+    .pipe(stylish.combineWithHintResults())
+    .pipe(jshint.reporter('jshint-stylish'));
 });
 
 gulp.task('build', function() {

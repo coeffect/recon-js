@@ -181,7 +181,7 @@ function Record(items, index) {
       i += 1;
     }
   }
-  var record = function(key) {
+  var record = function (key) {
     var value = index[key];
     if (value === undefined && typeof key === 'number') value = items[key];
     return value;
@@ -232,7 +232,7 @@ Record.prototype.isMarkup = function () {
   }
   return hasNonText && sections >= 2;
 };
-Record.prototype.hasAttrs = function() {
+Record.prototype.hasAttrs = function () {
   return this.items.length > 0 && (this.items[0].isAttr || this.items[this.items.length - 1].isAttr);
 };
 Record.prototype.hasPrefixAttrs = function () {
@@ -1671,7 +1671,7 @@ ReconWriter.prototype.writeValue = function (value, inMarkup) {
   else if (typeof value === 'boolean') this.writeBool(value);
   else if (value instanceof Uint8Array) this.writeData(value);
 };
-ReconWriter.prototype.writeAttr = function(attr) {
+ReconWriter.prototype.writeAttr = function (attr) {
   this.builder.append(64/*'@'*/);
   this.writeIdent(attr.key);
   if (!attr.value.isExtant) {
@@ -1680,7 +1680,7 @@ ReconWriter.prototype.writeAttr = function(attr) {
     this.builder.append(41/*')'*/);
   }
 };
-ReconWriter.prototype.writeItem = function(item) {
+ReconWriter.prototype.writeItem = function (item) {
   if (item.isField) {
     this.writeValue(item.key);
     this.builder.append(58/*':'*/);
@@ -1862,7 +1862,7 @@ ReconWriter.prototype.writeBool = function (bool) {
 };
 ReconWriter.prototype.writeData = function (data) {
   function encodeBase64Digit(x) {
-    if      (x >=  0 && x < 26) return x + 65/*'A'*/;
+    if (x >= 0 && x < 26) return x + 65/*'A'*/;
     else if (x >= 26 && x < 52) return x + 71/*('a' - 26)*/;
     else if (x >= 52 && x < 62) return x - 4/*-('0' - 52)*/;
     else if (x === 62) return 43/*'+'*/;

@@ -1,13 +1,7 @@
 {
-  "camelcase": true,
   "eqeqeq": true,
-  "immed": true,
-  "indent": 2,
-  "newcap": true,
-  "noarg": true,
   "node": true,
   "proto": true,
-  "quotmark": "single",
   "strict": true,
   "undef": true,
   "unused": ["vars"]

@@ -17,7 +17,7 @@ var builder = recon.builder;
 
 assert.same = function (x, y) {
   if (!recon.compare(x, y))
-    assert.fail(false, true, recon.stringify(x) +' did not equal '+ recon.stringify(y));
+    assert.fail(false, true, recon.stringify(x) + ' did not equal ' + recon.stringify(y));
 };
 
 
@@ -40,8 +40,8 @@ describe('Recon coercion', function () {
   });
 
   it('should coerce objects with @ member', function () {
-    assert.same(recon({'@': {'answer': 42}}), recon(attr('answer', 42)));
-    assert.same(recon({'@': {'answer': 42}, 'points': 2}), recon(attr('answer', 42), slot('points', 2)));
+    assert.same(recon({'@': {answer: 42}}), recon(attr('answer', 42)));
+    assert.same(recon({'@': {answer: 42}, points: 2}), recon(attr('answer', 42), slot('points', 2)));
   });
 
   it('should coerce objects using #toRecon() methods', function () {
@@ -448,13 +448,13 @@ describe('Recon parser', function () {
 
   it('should parse heterogeneous top-level items as a record', function () {
     var string =
-      '  record: {}  \n'+
-      '  markup: []  \n'+
-      '  ""          \n'+
-      '  %AA==       \n'+
-      '  integer: 0  \n'+
-      '  decimal: 0.0\n'+
-      '  true        \n'+
+      '  record: {}  \n' +
+      '  markup: []  \n' +
+      '  ""          \n' +
+      '  %AA==       \n' +
+      '  integer: 0  \n' +
+      '  decimal: 0.0\n' +
+      '  true        \n' +
       '  false         ';
     var record = recon(
       slot('record', empty()),
@@ -471,16 +471,16 @@ describe('Recon parser', function () {
 
   it('should parse interpolate heterogeneous items in a record', function () {
     var string =
-      '{             \n'+
-      '  record: {}  \n'+
-      '  markup: []  \n'+
-      '  ""          \n'+
-      '  %AA==       \n'+
-      '  integer: 0  \n'+
-      '  decimal: 0.0\n'+
-      '  true        \n'+
-      '  false         '+
-      '}                ';
+      '{             \n' +
+      '  record: {}  \n' +
+      '  markup: []  \n' +
+      '  ""          \n' +
+      '  %AA==       \n' +
+      '  integer: 0  \n' +
+      '  decimal: 0.0\n' +
+      '  true        \n' +
+      '  false         ' +
+      '}               ';
     var record = recon(
       slot('record', empty()),
       slot('markup', empty()),

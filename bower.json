@@ -1,0 +1,26 @@
+{
+  "name": "recon-js",
+  "version": "0.0.6",
+  "description": "Record Notation (RECON) JavaScript Implementation",
+  "homepage": "https://github.com/coeffect/recon-js",
+  "authors": [
+    "Chris Sachs <chris@coeffect.net>"
+  ],
+  "license": "Apache-2.0",
+  "keywords": [
+    "attributes",
+    "data",
+    "language",
+    "markup",
+    "parser",
+    "serialization",
+    "structure"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/coeffect/recon-js.git"
+  },
+  "moduleType": "node",
+  "main": "recon.js",
+  "ignore": ["*"]
+}
