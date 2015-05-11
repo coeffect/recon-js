@@ -15,7 +15,6 @@
     "structure"
   ],
   "devDependencies": {
-    "bower": "^1.4.1",
     "browserify": "^10.1.3",
     "coveralls": "^2.11.2",
     "gulp": "^3.8.11",
